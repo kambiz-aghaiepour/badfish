@@ -21,6 +21,16 @@ OEM_OSD = "%s/Oem/Dell/DellOSDeploymentService" % SYSTEM_RESOURCE
 LEGACY_OSD = "%s/Dell/Systems/System.Embedded.1/DellOSDeploymentService" % REDFISH_URI
 OPTICAL_MEDIA_TYPES = ["CD", "DVD", "USBStick"]
 
+BOOT_SOURCES = "%s/BootSources" % SYSTEM_RESOURCE
+OEM_BOOT_SOURCES = "%s/Oem/Dell/DellBootSources" % SYSTEM_RESOURCE
+BOOT_SOURCES_SETTINGS = "%s/Settings" % OEM_BOOT_SOURCES
+UEFI_BOOT_SEQ = [
+    {"Index": 0, "Name": "NIC.PxeDevice.1-1", "Enabled": True, "Id": "id-1"},
+    {"Index": 1, "Name": "RAID.SL.1-2", "Enabled": True, "Id": "id-2"},
+    {"Index": 2, "Name": "NIC.PxeDevice.2-1", "Enabled": True, "Id": "id-3"},
+]
+BOOT_SOURCES_RESP = {"Attributes": {"UefiBootSeq": UEFI_BOOT_SEQ}}
+
 
 def url(path):
     return "%s%s" % (HOST_URI, path)
@@ -254,3 +264,94 @@ class TestOsDeploymentResource:
         assert await badfish_instance.boot_remote_image("server:/path/to.iso") is True
         expected = url("%s/Actions/DellOSDeploymentService.BootToNetworkISO" % OEM_OSD)
         assert badfish_instance.post_request.call_args[0][0] == expected
+
+
+class TestFindBootSourcesResource:
+    @pytest.mark.asyncio
+    async def test_idrac9_boot_sources(self, badfish_instance):
+        badfish_instance.get_request = AsyncMock(side_effect=router({url(BOOT_SOURCES): make_response()}))
+
+        assert await badfish_instance.find_boot_sources_resource() == BOOT_SOURCES
+
+    @pytest.mark.asyncio
+    async def test_idrac10_falls_back_to_oem(self, badfish_instance):
+        badfish_instance.get_request = AsyncMock(side_effect=router({url(OEM_BOOT_SOURCES): make_response()}))
+
+        assert await badfish_instance.find_boot_sources_resource() == OEM_BOOT_SOURCES
+
+    @pytest.mark.asyncio
+    async def test_cached_resource(self, badfish_instance):
+        badfish_instance.boot_sources_resource = OEM_BOOT_SOURCES
+        badfish_instance.get_request = AsyncMock()
+
+        assert await badfish_instance.find_boot_sources_resource() == OEM_BOOT_SOURCES
+        badfish_instance.get_request.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_resource_found(self, badfish_instance):
+        badfish_instance.get_request = AsyncMock(side_effect=router({}))
+
+        with pytest.raises(BadfishException):
+            await badfish_instance.find_boot_sources_resource()
+
+
+class TestGetBootDevicesIdrac10:
+    @pytest.mark.asyncio
+    async def test_reads_uefi_boot_seq_from_oem_resource(self, badfish_instance):
+        badfish_instance.get_boot_seq = AsyncMock(return_value="UefiBootSeq")
+        badfish_instance.get_request = AsyncMock(
+            side_effect=router({url(OEM_BOOT_SOURCES): make_response(payload=BOOT_SOURCES_RESP)})
+        )
+
+        await badfish_instance.get_boot_devices()
+
+        assert badfish_instance.boot_devices == UEFI_BOOT_SEQ
+        assert badfish_instance.boot_sources_resource == OEM_BOOT_SOURCES
+
+    @pytest.mark.asyncio
+    async def test_raises_when_no_boot_sources_supported(self, badfish_instance):
+        badfish_instance.get_boot_seq = AsyncMock(return_value="UefiBootSeq")
+        badfish_instance.get_request = AsyncMock(side_effect=router({}))
+
+        with pytest.raises(BadfishException):
+            await badfish_instance.get_boot_devices()
+
+
+class TestPatchBootSeqIdrac10:
+    @pytest.mark.asyncio
+    async def test_patches_oem_settings_resource(self, badfish_instance):
+        badfish_instance.get_boot_seq = AsyncMock(return_value="UefiBootSeq")
+        badfish_instance.get_request = AsyncMock(side_effect=router({url(OEM_BOOT_SOURCES): make_response()}))
+        badfish_instance.patch_request = AsyncMock(return_value=make_response(status=200))
+
+        await badfish_instance.patch_boot_seq(UEFI_BOOT_SEQ)
+
+        expected = url(BOOT_SOURCES_SETTINGS)
+        assert badfish_instance.patch_request.call_args[0][0] == expected
+        assert badfish_instance.patch_request.call_args[0][1] == {"Attributes": {"UefiBootSeq": UEFI_BOOT_SEQ}}
+        assert badfish_instance.boot_sources_resource == OEM_BOOT_SOURCES
+        assert badfish_instance.patch_request.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_accepts_204_no_content_as_success(self, badfish_instance):
+        badfish_instance.get_boot_seq = AsyncMock(return_value="UefiBootSeq")
+        badfish_instance.get_request = AsyncMock(side_effect=router({url(OEM_BOOT_SOURCES): make_response()}))
+        badfish_instance.patch_request = AsyncMock(return_value=make_response(status=204))
+        badfish_instance.error_handler = AsyncMock()
+
+        await badfish_instance.patch_boot_seq(UEFI_BOOT_SEQ)
+
+        badfish_instance.error_handler.assert_not_called()
+        assert badfish_instance.patch_request.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_accepts_202_accepted_as_success(self, badfish_instance):
+        badfish_instance.get_boot_seq = AsyncMock(return_value="UefiBootSeq")
+        badfish_instance.get_request = AsyncMock(side_effect=router({url(OEM_BOOT_SOURCES): make_response()}))
+        badfish_instance.patch_request = AsyncMock(return_value=make_response(status=202))
+        badfish_instance.error_handler = AsyncMock()
+
+        await badfish_instance.patch_boot_seq(UEFI_BOOT_SEQ)
+
+        badfish_instance.error_handler.assert_not_called()
+        assert badfish_instance.patch_request.await_count == 1
