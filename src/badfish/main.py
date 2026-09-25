@@ -1192,7 +1192,7 @@ class Badfish:
             host_not_down = await self.polling_host_state("Down", False)
 
             if host_not_down:
-                power_on_accepted = await self.send_reset("On", log_already_on=False)
+                power_on_accepted = await self.send_reset("On", log_already_on=not graceful_restart_accepted)
                 if not power_on_accepted and graceful_restart_accepted:
                     self.logger.info(
                         "A graceful restart request was already sent to the %s; the server may still be restarting."

@@ -136,6 +136,12 @@ RESPONSE_REBOOT_ONLY_SUCCESS = (
     "- INFO     - Polling for host state: Not Down\n"
     "- INFO     - Command passed to On server, code return is 204.\n"
 )
+RESPONSE_REBOOT_ONLY_ALREADY_ON = (
+    "- INFO     - Current server state is ON.\n"
+    "- INFO     - Command passed to GracefulRestart server, code return is 204.\n"
+    "- INFO     - Polling for host state: Not Down\n"
+    "- INFO     - A graceful restart request was already sent to the iDRAC; the server may still be restarting.\n"
+)
 RESPONSE_REBOOT_ONLY_FAILED_SEND_RESET = (
     "- INFO     - Current server state is ON.\n"
     "- ERROR    - Command failed to GracefulRestart server, status code is: 400.\n"
@@ -154,6 +160,7 @@ RESPONSE_REBOOT_ONLY_FAILED_GRACE_AND_FORCE = (
     "- WARNING  - Unable to graceful shutdown the server, will perform forced shutdown now.\n"
     "- WARNING  - Command failed to ForceOff server, host appears to be already in that state.\n"
     "- INFO     - Polling for host state: Not Down\n"
+    "- INFO     - Command failed to On server, host appears to be already in that state.\n"
 )
 
 # test_power
@@ -2556,20 +2563,6 @@ RESPONSE_SET_NIC_ATTR_WITH_JOB_SUCCESS = """\
 - INFO     - PercentComplete: 100
 - INFO     - Verifying attribute value was applied...
 - INFO     - ✓ Successfully changed WakeOnLan from Enabled to Disabled
-"""
-
-RESPONSE_SET_NIC_ATTR_JOB_FAILED = """\
-- INFO     - Patch command to set network attribute values and create next reboot job PASSED.
-- INFO     - Network attribute configuration job created: JID_498218641680
-- INFO     - Waiting for configuration job to be scheduled...
-- INFO     - Job JID_498218641680 status: Scheduled - Task successfully scheduled.
-- INFO     - Current server state is ON.
-- INFO     - Command passed to GracefulRestart server, code return is 204.
-- INFO     - Polling for host state: Not Down
-- INFO     - A graceful restart request was already sent to the iDRAC; the server may still be restarting.
-- INFO     - Monitoring job JID_498218641680 for completion...
-- ERROR    - Configuration job JID_498218641680 did not complete successfully.
-- ERROR    - Network attribute changes may not have been applied.
 """
 
 RESPONSE_SET_NIC_ATTR_NO_JOB_ID = """\
