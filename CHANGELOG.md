@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## Unreleased
+
+### Bug Fixes
+
+- iDRAC10 boot order changes
+
+Dell 17G hosts (R670, iDRAC10) fail `change-boot` / `check-boot` with "Boot order modification is not
+  supported by this host." iDRAC10 dropped the `{system}/BootSources` collection (404) and serves the
+  boot order under the OEM `{system}/Oem/Dell/DellBootSources` resource instead.
+
+`find_boot_sources_resource()` resolves the resource by trying `/BootSources` then, when it is
+  unavailable, the OEM `DellBootSources` path, caching the result. `get_boot_devices()` and
+  `patch_boot_seq()` now use the resolved resource (and its `/Settings` target), so both iDRAC9 and
+  iDRAC10 hosts are handled. `patch_boot_seq()` also accepts a 204 No Content response as success.
+
+
 ## v1.7.0 (2026-09-11)
 
 ### Bug Fixes
